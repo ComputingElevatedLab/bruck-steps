@@ -1,0 +1,67 @@
+export NCCL_DEBUG=WARN
+
+CC ?= gcc-9
+CXX ?= g++-9
+
+PREFIX = /opt/nvidia/hpc_sdk/Linux_x86_64/22.5
+CUDA_HOME ?= $(PREFIX)/cuda/11.7
+NCCL_HOME ?= $(PREFIX)/comm_libs/11.7/nccl
+MPI_HOME ?= $(PREFIX)/comm_libs/openmpi4/openmpi-4.0.5
+PREFIX ?= /usr/local
+VERBOSE ?= 0
+DEBUG ?= 0
+
+CUDA_LIB ?= $(CUDA_HOME)/lib64
+CUDA_INC ?= $(CUDA_HOME)/include
+NVCC = $(CUDA_HOME)/bin/nvcc
+
+CUDA_VERSION = $(strip $(shell which $(NVCC) >/dev/null && $(NVCC) --version | grep release | sed 's/.*release //' | sed 's/\,.*//'))
+CUDA_MAJOR = $(shell echo $(CUDA_VERSION) | cut -d "." -f 1)
+
+# Better define NVCC_GENCODE in your environment to the minimal set
+# of archs to reduce compile time.
+ifeq ($(shell test "0$(CUDA_MAJOR)" -ge 11; echo $$?),0)
+NVCC_GENCODE ?= -gencode=arch=compute_60,code=sm_60 \
+                -gencode=arch=compute_61,code=sm_61 \
+                -gencode=arch=compute_70,code=sm_70 \
+                -gencode=arch=compute_80,code=sm_80 \
+                -gencode=arch=compute_80,code=compute_80
+else
+NVCC_GENCODE ?= -gencode=arch=compute_35,code=sm_35 \
+                -gencode=arch=compute_50,code=sm_50 \
+                -gencode=arch=compute_60,code=sm_60 \
+                -gencode=arch=compute_61,code=sm_61 \
+                -gencode=arch=compute_70,code=sm_70 \
+                -gencode=arch=compute_70,code=compute_70
+endif
+
+NVCUFLAGS  := -ccbin $(CXX) $(NVCC_GENCODE) -std=c++11 -Xcompiler -Wall,-Wextra,-Wno-unused-parameter
+
+NVLDFLAGS  := -L${CUDA_LIB} -lcudart -lrt
+
+NVCUFLAGS += -I$(NCCL_HOME)/include
+NVLDFLAGS += -L$(NCCL_HOME)/lib
+
+NVCUFLAGS += -DMPI_SUPPORT -I$(MPI_HOME)/include
+NVLDFLAGS += -L$(MPI_HOME)/lib -L$(MPI_HOME)/lib64 -lmpi -L/lus/theta-fs0/software/thetagpu/openmpi/openmpi-4.1.4_ucx-1.12.1_gcc-9.4.0/lib
+
+LIBRARIES += nccl
+NVLDFLAGS += $(LIBRARIES:%=-l%)
+
+TARGET_NAME := pingpong-nccl
+TARGET := $(TARGET_NAME)
+
+default: build
+
+build:
+	$(NVCC) -o $(TARGET) $(TARGET).cu $(NVCUFLAGS) $(NVLDFLAGS)
+
+test:
+	mpirun -n 2 ./$(TARGET)
+
+run: build test
+
+clean:
+	@rm -f $(TARGET)
+
+.PHONY: build

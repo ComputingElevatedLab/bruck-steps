@@ -1,0 +1,9 @@
+.vscode
+1-pingpong/mpi/pingpong-mpi
+1-pingpong/nccl/pingpong-nccl
+2-exchange/mpi/exchange-mpi
+2-exchange/nccl/exchange-nccl
+3-spreadout/mpi/spreadout-mpi
+3-spreadout/nccl/spreadout-nccl
+4-bruck/mpi/bruck-mpi
+4-bruck/nccl/bruck-nccl
